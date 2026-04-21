@@ -1,390 +1,516 @@
 # Pharma Intelligence Platform
 
-> **Sovereign AI สำหรับ Pharmaceutical Intelligence ของ GPO**
-> **ThaiLLM-powered Regulatory RAG** + **Long-term Demand Forecasting** สำหรับกลุ่มยา cardiometabolic
+Pharma Intelligence Platform is a research and product development repository for pharmaceutical intelligence focused on the Government Pharmaceutical Organization (GPO) context in Thailand. The project combines two complementary workstreams:
 
-โครงการ M.Sc. AI for Business (KMITL SIT 2025–2026) — พร้อมแผน commercialization เป็น SaaS สำหรับอุตสาหกรรมยาไทย/SEA
+- IS1: demand forecasting for cardiometabolic molecule classes
+- IS2: bilingual regulatory intelligence and retrieval-augmented generation (RAG) using ThaiLLM
 
-## 🇹🇭 Why Sovereign Thai AI?
+The repository supports an M.Sc. AI for Business research program at KMITL SIT and is structured to evolve into a production-oriented platform for Thai and Southeast Asian pharmaceutical use cases.
 
-โครงการนี้ใช้ **ThaiLLM (OpenThaiGPT)** ของรัฐไทยเป็น default LLM provider เพื่อ:
-- 🔒 **Data sovereignty** — ข้อมูลไม่ออกนอกประเทศ ตรงกับ policy หน่วยงานรัฐ
-- 🤝 **Positioning** — Thai AI for Thai pharma ช่วยในการขายให้ GPO/หน่วยงานรัฐ
-- 💰 **Cost** — ฟรีในระดับการใช้งานปกติ (5 req/sec, 200 req/min)
-- 🔬 **Research contribution** — เปรียบเทียบ sovereign 8B model vs frontier Claude เป็นส่วนหนึ่งของ paper
+## Table of Contents
 
-**Provider abstraction:** สลับไป Claude เพื่อ benchmark ได้ผ่าน 1 environment variable
+- Project Overview
+- Research Scope
+- Current Status
+- System Architecture
+- Repository Structure
+- Prerequisites
+- Installation
+- Configuration
+- IS1 Forecasting Workflow
+- IS2 Regulatory Intelligence Workflow
+- Colab GPU Workflow for Indexing
+- Development Commands
+- Testing and Quality Checks
+- Troubleshooting
+- Roadmap
+- License and Usage
 
----
+## Project Overview
 
-## 🎯 Week 1 Vertical Slice (ตอนนี้)
+The platform addresses two operational problems commonly faced by pharmaceutical R&D and strategic planning teams:
 
-Scope: FDA Orange Book → parse → embed (bge-m3) → ChromaDB → **ThaiLLM** → grounded answer with citations
+1. Long product development cycles can cause demand assumptions to become outdated before launch.
+2. Regulatory, patent, and competitor intelligence is often fragmented and difficult to monitor continuously.
 
-```bash
-# 1. ติดตั้ง (ครั้งเดียว)
-make setup
-source .venv/bin/activate
-# แก้ .env: ใส่ THAILLM_API_KEY
+To address these issues, the repository contains:
 
-# 2. Download + parse FDA Orange Book
-make download-orange-book
+- A forecasting pipeline for long-horizon demand estimation at the molecule-class level
+- A regulatory intelligence pipeline that ingests FDA Orange Book data and supports bilingual Thai and English question answering
+- A common configuration, logging, and experimentation framework for research iteration
 
-# 3. Build index (ใช้ Colab GPU แนะนำ — ดู notebooks/01_build_index_colab.ipynb)
-make build-index
+The initial therapeutic focus is cardiometabolic drugs, covering diabetes, hypertension, dyslipidemia, and relevant combination products.
 
-# 4. ถาม!
-make query Q='What patents cover empagliflozin and when do they expire?'
-make query Q='รายชื่อยา SGLT2 inhibitors ที่มีใน FDA Orange Book'
+## Research Scope
+
+### IS1: Forecasting
+
+The forecasting workstream focuses on molecule-class level demand forecasting rather than SKU-level prediction. This aligns better with strategic R&D decisions and reduces noise relative to product-level demand series.
+
+Current forecasting components include:
+
+- Mock demand generation anchored to public-health and market assumptions
+- SARIMAX baseline models
+- SARIMAX with exogenous regulatory and market features
+- A foundation for later extension to Prophet, XGBoost, and Temporal Fusion Transformer workflows
+
+### IS2: Regulatory Intelligence
+
+The regulatory intelligence workstream focuses on bilingual retrieval and grounded question answering over pharmaceutical regulatory data sources. The current implemented slice is centered on FDA Orange Book ingestion and document indexing.
+
+Current intelligence components include:
+
+- FDA Orange Book download and parsing
+- Cardiometabolic product filtering
+- Natural-language monograph generation for each approved product
+- Dense embedding with multilingual models
+- Persistent ChromaDB vector indexing
+- Bilingual question answering with ThaiLLM by default and Anthropic as an optional benchmark provider
+
+## Current Status
+
+The repository currently includes a working vertical slice for both IS1 and IS2.
+
+Completed or verified items include:
+
+- Project setup and dependency installation on Python 3.12
+- Smoke tests and unit tests passing locally
+- Mock demand generation and SARIMAX baseline evaluation
+- Orange Book ingestion with updated parser handling for current FDA schema changes
+- Colab notebook support for GPU-based bge-m3 indexing
+- ThaiLLM provider integration and bilingual RAG query pipeline
+
+Recent verified forecasting result:
+
+- Plain SARIMAX outperformed SARIMAX with the current exogenous feature set on the mock dataset
+- Experiment output is documented in `docs/experiment_01_sarimax_baseline.md`
+
+## System Architecture
+
+The platform is designed around two coordinated engines.
+
+### Engine A: Forecasting
+
+Forecasting is responsible for estimating medium- to long-horizon demand at the molecule-class level. The core principle is to use forecasting models for quantitative prediction rather than LLMs.
+
+Representative inputs include:
+
+- Historical demand series
+- Epidemiological prevalence trends
+- Budget and healthcare utilization proxies
+- Regulatory and patent-derived exogenous signals
+
+Representative outputs include:
+
+- Forecasts by molecule class
+- Comparative model metrics
+- Feature-ablation findings
+
+### Engine B: Intelligence
+
+The intelligence engine is responsible for collecting, structuring, retrieving, and summarizing regulatory information.
+
+Representative inputs include:
+
+- FDA Orange Book records
+- Future planned Thai sources such as TFDA and Royal Gazette publications
+- Patent and exclusivity metadata
+
+Representative outputs include:
+
+- Grounded answers with citations
+- Structured regulatory event signals
+- Evidence inputs for downstream forecasting features
+
+### Integration Principle
+
+The core methodological principle of the project is:
+
+- Machine learning for numerical forecasting
+- LLMs for language understanding, extraction, and grounded summarization
+
+This separation keeps forecasting defensible from a modeling perspective while still exploiting LLM capabilities for document-heavy pharmaceutical intelligence tasks.
+
+## Repository Structure
+
+```text
+pharma-intelligence/
+├── data/
+│   ├── raw/
+│   ├── interim/
+│   └── processed/
+├── docs/
+├── notebooks/
+├── scripts/
+├── src/
+│   └── pharma_intel/
+│       ├── common/
+│       ├── forecasting/
+│       ├── ingestion/
+│       └── rag/
+├── tests/
+├── chroma_db/
+├── Makefile
+├── pyproject.toml
+└── README.md
 ```
 
----
+Key areas:
 
-## 📋 Prerequisites
+- `src/pharma_intel/common`: configuration, constants, and logging
+- `src/pharma_intel/forecasting`: mock data generation, anchors, baselines, and molecule-class definitions
+- `src/pharma_intel/ingestion`: Orange Book ingestion and monograph creation
+- `src/pharma_intel/rag`: embeddings, vector store, query engine, and LLM provider abstraction
+- `scripts`: CLI entry points for ingestion, indexing, querying, forecasting, and benchmarking
+- `notebooks`: notebook-based workflows, including Colab GPU indexing
+- `docs`: experiment writeups and scope documentation
 
-| Requirement | Version | Why |
-|---|---|---|
-| **Python** | **3.12** (แนะนำ) หรือ 3.11 | ML libs มี wheels พร้อม; 3.14 ต้อง compile บางตัว |
-| **ThaiLLM API key** | — | ขอได้ที่ <http://thaillm.or.th> |
-| Git | ล่าสุด | Version control |
-| direnv | optional | Auto-activate venv |
-| Disk | ~5GB free | Orange Book + bge-m3 (~2GB) + ChromaDB |
-| RAM | ≥8GB (local) / T4 (Colab) | สำหรับ embedding 1,800+ docs |
+## Prerequisites
 
-> ⚠️ **Python 3.14 warning:** PyTorch-based libs อาจต้อง build from source — แนะนำใช้ 3.12
+The following environment is recommended:
 
-### การติดตั้ง Python 3.12
+- Python 3.12
+- Git
+- Approximately 5 GB of free disk space for model cache, processed data, and ChromaDB artifacts
+- At least 8 GB RAM for local development
+- A ThaiLLM API key for the default LLM workflow
+
+Optional but recommended:
+
+- Google Drive for persisting large model and vector index artifacts
+- Colab GPU runtime for faster embedding and indexing
+
+### Python Version Guidance
+
+Supported Python range is defined in `pyproject.toml` as `>=3.11,<3.15`. Python 3.12 is the recommended version because the repository and its current dependency set have already been validated in that environment.
+
+## Installation
+
+### 1. Clone the Repository
 
 ```bash
-# macOS
-brew install python@3.12
-
-# Ubuntu/Debian
-sudo apt update && sudo apt install python3.12 python3.12-venv
-
-# Windows: ดาวน์โหลดจาก python.org
-```
-
----
-
-## 🚀 Setup แบบละเอียด
-
-```bash
-git clone <your-repo-url> pharma-intelligence
+git clone https://github.com/siriponsri/pharma-intelligence.git
 cd pharma-intelligence
+```
 
-# venv + deps
+### 2. Create and Activate a Virtual Environment
+
+#### Windows PowerShell
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+#### macOS or Linux
+
+```bash
 python3.12 -m venv .venv
 source .venv/bin/activate
+```
+
+### 3. Install Dependencies
+
+For the validated local development setup used in this repository:
+
+```bash
 pip install --upgrade pip
-pip install -e ".[dev]"
+pip install -e ".[dev,forecasting]"
+```
 
-# direnv (optional)
-brew install direnv          # macOS
-eval "$(direnv hook zsh)"    # add to ~/.zshrc
-direnv allow
+Optional dependency sets:
 
-# API key
+- `.[dev]`: testing and code quality tools only
+- `.[dev,notebook]`: add Jupyter support
+- `.[dev,notebook,forecasting]`: full local environment
+
+### 4. Create the Environment File
+
+```bash
 cp .env.example .env
-# แก้ .env ใส่ THAILLM_API_KEY
-
-# Verify
-make test
 ```
 
----
+On Windows PowerShell, if `cp` is not available:
 
-## 🧪 First Run
-
-**Download Orange Book (~10 sec, English content):**
-```bash
-make download-orange-book
+```powershell
+Copy-Item .env.example .env
 ```
 
-**Build index — เลือก option:**
+Then update `.env` with at least:
 
-### Option A: Local CPU (ช้า แต่ง่าย)
-```bash
-make build-index
-```
-⏱️ ครั้งแรก ~20–30 นาที (download bge-m3 + embed บน CPU)
-
-### Option B: Colab Pro GPU (เร็ว)
-1. อัพโหลด repo เข้า Colab
-2. เปิด `notebooks/01_build_index_colab.ipynb`
-3. รัน cells ตามลำดับ — ChromaDB จะถูก save ลง Google Drive
-4. ดาวน์โหลด `chroma_db/` มาไว้ local
-
-⏱️ รวม ~1 นาที บน T4
-
-### Option C: ใช้ Drive mount ตรง ๆ
-แก้ `.env`:
-```bash
-CHROMA_PERSIST_DIR=/path/to/GoogleDrive/pharma-intel/chroma_db
-```
-แล้วไม่ต้อง copy — query ตรงจาก Drive mount
-
-**Query:**
-```bash
-# Basic
-make query Q='When does empagliflozin patent expire?'
-
-# With filters
-python scripts/query_rag.py "list SGLT2 inhibitors" --k 10 --area diabetes
-
-# Override provider (benchmarking)
-python scripts/query_rag.py "..." --provider anthropic
+```env
+THAILLM_API_KEY=your_key_here
 ```
 
----
+### 5. Verify the Setup
 
-## 🔀 LLM Provider Switching
-
-**Default:** ThaiLLM (sovereign)
 ```bash
-# .env
+pytest -v --tb=short
+```
+
+## Configuration
+
+The repository uses environment-based configuration through `.env` and `pydantic-settings`.
+
+### Core Settings
+
+```env
 LLM_PROVIDER=thaillm
-THAILLM_API_KEY=xxx
-```
-
-**Benchmark mode:** Claude for comparison
-```bash
-# .env
-LLM_PROVIDER=anthropic
-ANTHROPIC_API_KEY=sk-ant-xxx
-```
-
-**Per-call override:**
-```bash
-python scripts/query_rag.py "..." --provider anthropic
-```
-
-**Run full benchmark (both providers, same questions):**
-```bash
-# Create questions file (see tests/sample_questions.json for format)
-python scripts/benchmark_providers.py \
-    --questions data/test_questions.json \
-    --out data/benchmark_results.json \
-    --providers thaillm,anthropic
-```
-
----
-
-## 📁 โครงสร้างโปรเจกต์
-
-```
-pharma-intelligence/
-├── src/pharma_intel/
-│   ├── common/              # config, logging, drug constants
-│   ├── ingestion/           # FDA, TFDA parsers
-│   ├── rag/
-│   │   ├── embeddings.py    # bge-m3
-│   │   ├── vectorstore.py   # ChromaDB
-│   │   ├── indexer.py       # glue
-│   │   ├── query.py         # RAG engine
-│   │   └── llm/             # ★ Provider abstraction
-│   │       ├── base.py
-│   │       ├── thaillm_provider.py      (primary)
-│   │       ├── anthropic_provider.py    (benchmark)
-│   │       └── factory.py
-│   └── forecasting/         # IS2 phase (placeholder)
-│
-├── scripts/                 # typer CLI
-│   ├── download_orange_book.py
-│   ├── build_index.py
-│   ├── query_rag.py
-│   └── benchmark_providers.py  ★ for paper
-│
-├── notebooks/
-│   └── 01_build_index_colab.ipynb   ★ GPU indexing
-│
-├── tests/
-├── data/ (gitignored)
-├── chroma_db/ (gitignored)
-│
-├── pyproject.toml
-├── Makefile
-├── .env.example
-├── .envrc
-└── .gitignore
-```
-
----
-
-## 🛠️ คำสั่งที่ใช้บ่อย
-
-```bash
-make help                   # แสดงคำสั่งทั้งหมด
-make setup                  # setup ครั้งแรก
-make install-dev            # dev deps
-make install-all            # + forecasting
-make test                   # pytest
-make lint                   # ruff + mypy
-make format                 # black + ruff --fix
-make clean                  # ล้าง cache
-
-# Pipeline
-make download-orange-book
-make build-index
-make query Q='question'
-
-# Advanced
-python scripts/query_rag.py "q" --k 10 --area diabetes --provider thaillm
-python scripts/build_index.py --reset
-python scripts/benchmark_providers.py --questions ... --out ...
-```
-
----
-
-## ⚙️ Configuration
-
-### LLM Provider
-```bash
-LLM_PROVIDER=thaillm              # thaillm | anthropic
-```
-
-### ThaiLLM
-```bash
-THAILLM_API_KEY=xxx
+THAILLM_API_KEY=
 THAILLM_BASE_URL=http://thaillm.or.th/api/v1
 THAILLM_MODEL=openthaigpt-thaillm-8b-instruct-v7.2
+
+ANTHROPIC_API_KEY=
+CLAUDE_MODEL=claude-sonnet-4-6
+
+DATA_DIR=./data
+CHROMA_PERSIST_DIR=./chroma_db
+MODEL_CACHE_DIR=./.cache/models
+
+EMBEDDING_MODEL=BAAI/bge-m3
+LOG_LEVEL=INFO
 ```
 
-⚠️ **Security:** ThaiLLM endpoint ใช้ HTTP (ไม่ใช่ HTTPS) — API key ส่งแบบ plaintext อย่าใช้บน public WiFi, rotate key บ่อย ๆ
+### Embedding Model Options
 
-### Claude (optional)
+Default model:
+
+```env
+EMBEDDING_MODEL=BAAI/bge-m3
+```
+
+Faster local development alternative:
+
+```env
+EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+```
+
+If the embedding model changes, rebuild the vector index.
+
+### Security Note
+
+The current ThaiLLM endpoint uses HTTP rather than HTTPS. Treat the API key as sensitive, avoid untrusted networks when possible, and rotate credentials periodically.
+
+## IS1 Forecasting Workflow
+
+### Generate the Mock Demand Panel
+
 ```bash
-ANTHROPIC_API_KEY=sk-ant-xxx
-CLAUDE_MODEL=claude-sonnet-4-6   # or claude-haiku-4-5-20251001
+python scripts/generate_mock_demand.py
 ```
 
-### Embedding model
+Generated outputs include:
+
+- `data/processed/mock_demand_history.parquet`
+- `data/processed/mock_demand_history.csv`
+
+### Run the SARIMAX Baseline
+
 ```bash
-EMBEDDING_MODEL=BAAI/bge-m3                                           # SOTA bilingual (2GB)
-# EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2   # faster (400MB)
+python scripts/run_sarimax_baseline.py --output data/processed/sarimax_baseline_results.json
 ```
-⚠️ เปลี่ยน model ต้อง rebuild: `python scripts/build_index.py --reset`
 
-### Google Drive mount
+### Run SARIMAX with Exogenous Features
+
 ```bash
-DATA_DIR=/Volumes/GoogleDrive/pharma-intel/data
-CHROMA_PERSIST_DIR=/Volumes/GoogleDrive/pharma-intel/chroma_db
-MODEL_CACHE_DIR=/Volumes/GoogleDrive/pharma-intel/.cache/models
+python scripts/run_sarimax_baseline.py --with-exog --output data/processed/sarimax_exog_results.json
 ```
 
----
+### Current Experiment Notes
 
-## 🧭 Roadmap
+The current experiment shows that the present exogenous feature specification does not improve forecasting accuracy on the mock dataset. This is documented in:
 
-### ✅ Week 1 — FDA Orange Book slice (DONE)
-- [x] Repo scaffolding, logging, config
-- [x] Orange Book download + parse
-- [x] Cardiometabolic filter (~50 drugs)
-- [x] Drug monograph generation
-- [x] bge-m3 + ChromaDB
-- [x] **LLM provider abstraction (ThaiLLM default, Claude optional)**
-- [x] Colab GPU indexing notebook
-- [x] Benchmark script for paper
+- `docs/experiment_01_sarimax_baseline.md`
 
-### 🔲 Week 2 — Evaluation framework
-- [ ] Test set (100+ bilingual Q&A pairs, pharmacist-validated)
-- [ ] RAGAS integration (faithfulness, precision, recall, answer relevance)
-- [ ] Custom metric: citation accuracy
-- [ ] **First benchmark: ThaiLLM vs Claude** (early signal for paper)
+## IS2 Regulatory Intelligence Workflow
 
-### 🔲 Week 3 — Thai sources (key differentiator)
-- [ ] TFDA drug registration scraper
-- [ ] ราชกิจจานุเบกษา PDF + typhoon-ocr
-- [ ] NLEM essential medicines list parser
-- [ ] PyThaiNLP preprocessing
+### Step 1: Download and Process FDA Orange Book Data
 
-### 🔲 Week 4 — ClinicalTrials + PubMed
-- [ ] ClinicalTrials.gov API
-- [ ] PubMed E-utilities
-- [ ] Hybrid retrieval (BM25 + dense + cross-encoder reranker)
+```bash
+python scripts/download_orange_book.py
+```
 
-### 🔲 Week 5–8 — Forecasting foundation
-- [ ] Mock demand data generator (anchored to HDC public stats)
-- [ ] SARIMAX baseline
-- [ ] XGBoost with engineered features
+This pipeline:
 
-### 🔲 Week 9–14 — TFT on Vast AI
-- [ ] Exogenous feature pipeline (patents, regulations → forecast features)
-- [ ] Global TFT training
-- [ ] Ablation study
-- [ ] Diebold-Mariano significance tests
+- Downloads the Orange Book archive
+- Parses product, patent, and exclusivity files
+- Filters cardiometabolic products
+- Generates monograph text suitable for indexing
+- Writes processed parquet output
 
-### 🔲 Week 15+ — Integration + paper
-- [ ] Streamlit dashboard
-- [ ] GPO stakeholder user study
-- [ ] Paper: "Sovereign Thai LLM for Pharmaceutical Intelligence"
-- [ ] IS1/IS2 writing
+Primary processed artifact:
 
----
+- `data/processed/orange_book_cardiometabolic.parquet`
 
-## 🔬 Research Contribution
+### Step 2: Build the Vector Index
 
-Paper angles opened by this architecture:
+```bash
+python scripts/build_index.py
+```
 
-1. **Sovereign vs Frontier Benchmark** — Can 8B OpenThaiGPT match Claude Sonnet on bilingual pharmaceutical regulatory QA?
-2. **Bilingual RAG** — How does bge-m3 + Thai LLM perform on code-switched queries (Thai question, English source)?
-3. **Long-horizon exogenous forecasting** — Does RAG-extracted regulatory signal improve 3–5 yr TFT forecasts?
+This command embeds monograph text and stores the persistent collection in ChromaDB.
 
----
+Expected behavior:
 
-## 🔧 Troubleshooting
+- Local CPU with `BAAI/bge-m3` is slow on first run
+- First run downloads a large model cache
+- Colab GPU is recommended for production-sized indexing workflows
 
-**Problem:** `pip install` เจอ PyTorch/hnswlib error
-**Solution:** Python version — ใช้ 3.12
+### Step 3: Query the RAG System
 
-**Problem:** `ModuleNotFoundError: pharma_intel`
-**Solution:** `make install-dev`
+```bash
+python scripts/query_rag.py "What patents cover empagliflozin and when do they expire?"
+python scripts/query_rag.py "List SGLT2 inhibitors approved by FDA with their manufacturers" --k 10
+python scripts/query_rag.py "สิทธิบัตรของ dapagliflozin หมดเมื่อไหร่"
+```
 
-**Problem:** `THAILLM_API_KEY not set` / `ANTHROPIC_API_KEY not set`
-**Solution:** `cp .env.example .env` + แก้ใส่ key, direnv `direnv allow`
+The query engine:
 
-**Problem:** ThaiLLM ตอบช้า / timeout
-**Solution:**
-- Service rate limit (5 req/sec) — ถ้าชน ลอง sleep
-- Service downtime — fallback ไป Claude ชั่วคราว: `--provider anthropic`
+- Retrieves top-k chunks from ChromaDB
+- Builds a grounded context block
+- Uses the configured LLM provider to answer in the question language
+- Returns source citations inline using document identifiers
 
-**Problem:** bge-m3 download ช้าบน local
-**Solution:** สลับเป็น MiniLM-L12-v2 หรือใช้ Colab notebook
+### Provider Override Example
 
-**Problem:** ChromaDB `sqlite3` version error
-**Solution:** `pip install pysqlite3-binary` + monkey-patch
+```bash
+python scripts/query_rag.py "Compare generic manufacturers of metformin" --provider anthropic
+```
 
-**Problem:** FDA URL เปลี่ยน
-**Solution:** แก้ `ORANGE_BOOK_URL` ใน `src/pharma_intel/ingestion/fda_orange_book.py`
+## Colab GPU Workflow for Indexing
 
----
+For `BAAI/bge-m3`, Colab GPU is the recommended indexing path.
 
-## 🔐 Security & IP
+Notebook:
 
-- **`.env` อยู่ใน `.gitignore`** — ห้าม commit API keys
-- **ThaiLLM HTTP endpoint** — ไม่ encrypt, อย่าใช้ public WiFi
-- **GPO internal data** — ห้ามเข้า git ใช้ DVC/external storage
-- **Commercial model** — train/fine-tune บน non-GPO data only (IS Plan §10)
+- `notebooks/01_build_index_colab.ipynb`
 
----
+Recommended workflow:
 
-## 📚 References
+1. Open the notebook in Colab
+2. Set runtime to a T4 GPU or better
+3. Mount Google Drive
+4. Clone the repository from GitHub
+5. Install dependencies
+6. Load `THAILLM_API_KEY` via Colab Secrets
+7. Run ingestion and indexing cells
+8. Persist `chroma_db` to Google Drive
+9. Reuse that persisted index for local querying
 
-- ThaiLLM / OpenThaiGPT: <http://thaillm.or.th>
-- FDA Orange Book: <https://www.fda.gov/drugs/drug-approvals-and-databases/orange-book-data-files>
-- BAAI bge-m3: <https://huggingface.co/BAAI/bge-m3>
-- Anthropic Claude: <https://docs.claude.com/>
-- LlamaIndex: <https://docs.llamaindex.ai>
-- PyThaiNLP: <https://pythainlp.org>
+This notebook has been updated to clone the repository directly from:
 
----
+```text
+https://github.com/siriponsri/pharma-intelligence.git
+```
 
-## 📝 License
+## Development Commands
 
-Proprietary. IP clearance with GPO required before commercial deployment.
+The repository includes a `Makefile`, but note that it is oriented toward POSIX shells. On Windows, direct `python` and `pip` commands are often more reliable than invoking `make`.
 
----
+### Common Make Targets
 
-**Author:** Siripon Srihangpiboon
-**Program:** M.Sc. AI for Business, KMITL SIT (2025–2026)
-**Contact:** srihangpiboon.siri@gmail.com
+```bash
+make help
+make install-dev
+make install-notebook
+make install-all
+make test
+make lint
+make format
+make download-orange-book
+make build-index
+make generate-mock
+make sarimax-baseline
+make sarimax-exog
+```
+
+### Windows-Friendly Direct Commands
+
+```powershell
+pytest -v
+python scripts\download_orange_book.py
+python scripts\build_index.py
+python scripts\generate_mock_demand.py
+python scripts\run_sarimax_baseline.py --output data\processed\sarimax_baseline_results.json
+python scripts\query_rag.py "What patents cover empagliflozin and when do they expire?"
+```
+
+## Testing and Quality Checks
+
+Run the automated tests:
+
+```bash
+pytest -v --tb=short
+```
+
+Run linting and type checks:
+
+```bash
+ruff check src tests scripts
+mypy src
+```
+
+Apply formatting:
+
+```bash
+black src tests scripts
+ruff check --fix src tests scripts
+```
+
+## Troubleshooting
+
+### Windows and `make`
+
+The provided `Makefile` uses Unix-oriented shell commands. On Windows PowerShell, prefer the direct `python`, `pip`, and `pytest` commands shown in this README.
+
+### Orange Book Schema Changes
+
+The FDA source files may change column naming conventions over time. The current parser already handles the observed `DF;Route` versus `DF_Route` schema variation and null text fields found in recent Orange Book data.
+
+### Slow Local Indexing
+
+If local indexing with `BAAI/bge-m3` is too slow:
+
+- Use the Colab GPU notebook
+- Or temporarily switch to `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` for faster local iteration
+
+### Large Model Download Behavior
+
+The first embedding run downloads model artifacts and may take significant time. Reuse `MODEL_CACHE_DIR` across runs where possible.
+
+### ChromaDB Persistence
+
+If querying fails after indexing, verify:
+
+- `CHROMA_PERSIST_DIR` points to the expected `chroma_db` folder
+- The same embedding model is used consistently
+- The collection exists and contains documents
+
+### ThaiLLM Rate Limits
+
+ThaiLLM enforces rate limits. If the provider returns a rate-limit error during evaluation, wait briefly and retry once.
+
+## Roadmap
+
+### Near-Term
+
+- Add a formal bilingual evaluation set for RAG
+- Add Anthropic benchmark comparisons for answer quality and citation behavior
+- Extend forecasting baselines to Prophet and tree-based methods
+- Add additional Thai regulatory data sources
+
+### Medium-Term
+
+- Integrate regulatory event extraction into exogenous forecasting features
+- Expand dashboard and stakeholder-facing reporting
+- Run longer-horizon forecasting experiments with stronger validation design
+
+### Long-Term
+
+- Train and evaluate richer forecasting models such as TFT
+- Build production-grade ingestion for TFDA, Royal Gazette, and clinical trial sources
+- Conduct stakeholder evaluation with GPO or comparable institutions
+
+## License and Usage
+
+This project is marked as proprietary in `pyproject.toml`. Do not assume open-source usage rights unless the repository owner provides explicit licensing terms.
