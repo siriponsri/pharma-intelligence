@@ -169,6 +169,10 @@ def _read_pipe_file(path: Path, columns: list[str]) -> pl.DataFrame:
     # Normalize column names (FDA uses inconsistent casing/spacing)
     df = df.rename({c: c.strip() for c in df.columns})
 
+    # FDA changed this header from DF_Route to DF;Route in current products.txt.
+    if "DF;Route" in df.columns and "DF_Route" not in df.columns:
+        df = df.rename({"DF;Route": "DF_Route"})
+
     missing = [c for c in columns if c not in df.columns]
     if missing:
         logger.warning(f"Expected columns missing from {path.name}: {missing}")
@@ -240,10 +244,13 @@ def build_monographs(
     """
     monographs: list[DrugMonograph] = []
 
+    def clean(value: str | None) -> str:
+        return (value or "").strip()
+
     for row in products.iter_rows(named=True):
-        appl_no = row.get("Appl_No", "").strip()
-        product_no = row.get("Product_No", "").strip()
-        ingredient = row.get("Ingredient", "").strip()
+        appl_no = clean(row.get("Appl_No"))
+        product_no = clean(row.get("Product_No"))
+        ingredient = clean(row.get("Ingredient"))
 
         if not appl_no or not product_no:
             continue
@@ -281,11 +288,11 @@ def build_monographs(
             appl_no=appl_no,
             product_no=product_no,
             ingredient=ingredient,
-            trade_name=row.get("Trade_Name", "").strip(),
-            applicant=row.get("Applicant", "").strip(),
-            strength=row.get("Strength", "").strip(),
-            dosage_form_route=row.get("DF_Route", "").strip(),
-            approval_date=row.get("Approval_Date", "").strip() or None,
+            trade_name=clean(row.get("Trade_Name")),
+            applicant=clean(row.get("Applicant")),
+            strength=clean(row.get("Strength")),
+            dosage_form_route=clean(row.get("DF_Route")),
+            approval_date=clean(row.get("Approval_Date")) or None,
             therapeutic_area=therapeutic_area,
             patents=patents_list,
             exclusivities=excl_list,
@@ -312,17 +319,18 @@ def _generate_monograph_text(
     """
     lines: list[str] = []
 
-    ingredient = product_row.get("Ingredient", "").strip()
-    trade_name = product_row.get("Trade_Name", "").strip()
-    strength = product_row.get("Strength", "").strip()
-    df_route = product_row.get("DF_Route", "").strip()
-    applicant = product_row.get("Applicant_Full_Name", "").strip() or product_row.get(
-        "Applicant", ""
-    ).strip()
-    approval_date = product_row.get("Approval_Date", "").strip()
-    te_code = product_row.get("TE_Code", "").strip()
-    rld = product_row.get("RLD", "").strip()
-    appl_type = product_row.get("Appl_Type", "").strip()
+    def clean(value: str | None) -> str:
+        return (value or "").strip()
+
+    ingredient = clean(product_row.get("Ingredient"))
+    trade_name = clean(product_row.get("Trade_Name"))
+    strength = clean(product_row.get("Strength"))
+    df_route = clean(product_row.get("DF_Route"))
+    applicant = clean(product_row.get("Applicant_Full_Name")) or clean(product_row.get("Applicant"))
+    approval_date = clean(product_row.get("Approval_Date"))
+    te_code = clean(product_row.get("TE_Code"))
+    rld = clean(product_row.get("RLD"))
+    appl_type = clean(product_row.get("Appl_Type"))
 
     # Header
     lines.append(f"Drug Product: {trade_name or ingredient} ({ingredient})")

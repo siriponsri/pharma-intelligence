@@ -8,6 +8,7 @@ Usage:
 
 from __future__ import annotations
 
+import polars as pl
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -48,9 +49,9 @@ def main(
         df.group_by("therapeutic_area")
         .agg(
             [
-                df["units_kddd"].sum().alias("total_kddd"),
-                df["revenue_thb_million"].sum().alias("total_revenue_mb"),
-                df["class_id"].n_unique().alias("n_classes"),
+                pl.col("units_kddd").sum().alias("total_kddd"),
+                pl.col("revenue_thb_million").sum().alias("total_revenue_mb"),
+                pl.col("class_id").n_unique().alias("n_classes"),
             ]
         )
         .to_dicts()
@@ -65,7 +66,7 @@ def main(
     for row in area_summary:
         table.add_row(
             row["therapeutic_area"],
-            str(df.filter(df["therapeutic_area"] == row["therapeutic_area"])["class_id"].n_unique()),
+            str(row["n_classes"]),
             f"{row['total_kddd']:,.0f}",
             f"{row['total_revenue_mb']:,.0f}",
         )
