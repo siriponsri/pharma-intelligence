@@ -165,6 +165,19 @@ Key areas:
 - `notebooks`: notebook-based workflows, including Colab GPU indexing
 - `docs`: experiment writeups and scope documentation
 
+## Planning and Experiment Tracking
+
+The repository follows the project roadmap in `docs/master_plan.md`.
+
+For traceable research execution and later slide / thesis writing, use these docs together:
+
+- `docs/experiment_registry.md`: master ledger of experiment IDs, phases, methods, and report files
+- `docs/experiment_template.md`: standard structure for future experiment reports
+- `docs/data_sources.md`: source inventory and integration notes for real and synthetic data
+- `docs/experiment_01_*` through `docs/experiment_12_*`: phase-aligned experiment reports and placeholders
+
+The rule is simple: every meaningful experiment should produce both machine artifacts and a matching markdown report in `docs/`.
+
 ## Prerequisites
 
 The following environment is recommended:

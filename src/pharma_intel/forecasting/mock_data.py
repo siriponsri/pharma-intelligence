@@ -5,6 +5,12 @@ molecule classes in Thailand. Anchored to public prevalence/budget statistics
 so that the SHAPE of the data is defensible, even though specific values
 are synthetic.
 
+The generator intentionally includes per-class noise variation, regime shifts,
+cross-class substitution, softened exogenous linkage, less-perfect seasonality,
+and class-varying COVID/patent responses. These settings are calibrated to push
+seasonal SARIMAX baseline difficulty toward a more realistic 12-20% MAPE range
+instead of the previous overly clean series.
+
 Output schema (long format):
     month: date (first of month)
     class_id: str — molecule class identifier
@@ -81,8 +87,11 @@ class GeneratorConfig:
     random_seed: int = 42
 
     # Noise parameters
-    monthly_noise_sigma: float = 0.05  # ~5% monthly variance
+    monthly_noise_sigma: float = 0.15  # ~15% monthly variance
+    per_class_noise_variation: float = 0.5  # some classes are up to ±50% noisier
     seasonality_amplitude: float = 0.08  # 8% peak-to-trough
+    regime_shift_count: int = 2  # approximate structural breaks per class
+    regime_shift_magnitude: float = 0.20  # ±20% permanent level change
 
     # Class-level correlation (same class moves together across channels)
     class_correlation: float = 0.75
@@ -93,10 +102,10 @@ class GeneratorConfig:
 
     # Inject COVID shock 2020-03 to 2020-09
     inject_covid_shock: bool = True
-    covid_impact: float = -0.15  # -15% during worst months
+    covid_impact: float = -0.10  # -10% during worst months
 
     # Patent cliff effect: when patent expires, class demand jumps
-    patent_cliff_boost: float = 0.35  # +35% within 18 months of expiry
+    patent_cliff_boost: float = 0.20  # +20% within 18 months of expiry
     patent_cliff_window_months: int = 18
 
 
@@ -138,6 +147,21 @@ def generate_demand_panel(
     return df
 
 
+def _substitution_factor(cls: MoleculeClass, year: int) -> float:
+    """Older classes gradually lose share to newer classes in the same area."""
+    newer_classes = [
+        candidate
+        for candidate in ALL_CLASSES
+        if candidate.therapeutic_area == cls.therapeutic_area
+        and candidate.first_launch_th_year > cls.first_launch_th_year
+        and year - candidate.first_launch_th_year >= 5
+    ]
+    return max(
+        0.5,
+        1.0 - 0.02 * len(newer_classes) * (year - cls.first_launch_th_year) / 10,
+    )
+
+
 def _generate_class_series(
     cls: MoleculeClass,
     months: list[date],
@@ -152,8 +176,40 @@ def _generate_class_series(
     # Monthly base (annual total / 12)
     monthly_base_kddd = (annual_total_kddd * class_share) / 12
 
+    class_sigma_multiplier = 1.0 + rng.uniform(
+        -cfg.per_class_noise_variation, cfg.per_class_noise_variation
+    )
+    class_sigma = cfg.monthly_noise_sigma * class_sigma_multiplier
+
     # Class-specific shocks (shared across channels via correlation)
-    class_shock = rng.normal(0, cfg.monthly_noise_sigma, size=len(months))
+    class_shock = rng.normal(0, class_sigma, size=len(months))
+
+    # Some classes react more or less strongly to external disruptions.
+    covid_multiplier = max(0.0, 1 + rng.normal(0, 0.4))
+    patent_multiplier = max(0.0, 1 + rng.normal(0, 0.4))
+
+    # Strong seasonal spikes do not repeat identically every year.
+    unique_years = sorted({month.year for month in months})
+    year_amp = {
+        year: cfg.seasonality_amplitude * (1 + rng.normal(0, 0.3))
+        for year in unique_years
+    }
+
+    # Structural breaks are only meaningful when the history is long enough.
+    regime_levels = np.ones(len(months))
+    candidate_shift_months = list(range(12, len(months) - 6))
+    if candidate_shift_months:
+        n_shifts = int(
+            rng.integers(1, min(cfg.regime_shift_count, len(candidate_shift_months)) + 1)
+        )
+        shift_months = sorted(rng.choice(candidate_shift_months, size=n_shifts, replace=False))
+        shift_magnitudes = rng.uniform(
+            -cfg.regime_shift_magnitude,
+            cfg.regime_shift_magnitude,
+            size=n_shifts,
+        )
+        for shift_idx, magnitude in zip(shift_months, shift_magnitudes):
+            regime_levels[shift_idx:] *= 1 + magnitude
 
     rows: list[dict] = []
     for idx, month in enumerate(months):
@@ -162,7 +218,9 @@ def _generate_class_series(
         prevalence = get_prevalence(cls.growth_driver, year)
         # Normalize: 2019 prevalence = baseline 1.0
         prev_2019 = get_prevalence(cls.growth_driver, 2019)
-        prevalence_factor = prevalence / prev_2019 if prev_2019 > 0 else 1.0
+        raw_ratio = prevalence / prev_2019 if prev_2019 > 0 else 1.0
+        dampened = 1.0 + (raw_ratio - 1.0) * 0.5
+        prevalence_factor = dampened * (1 + rng.normal(0, 0.03))
 
         # 2. Launch ramp — if class is new to Thai market, gradual ramp up
         years_since_launch = year - cls.first_launch_th_year
@@ -170,7 +228,8 @@ def _generate_class_series(
 
         # 3. Seasonality — public hospital Q4 budget spike + flu season
         month_num = month.month
-        seasonality = 1.0 + cfg.seasonality_amplitude * np.cos(
+        amp = year_amp[year]
+        seasonality = 1.0 + amp * np.cos(
             2 * np.pi * (month_num - 10) / 12  # peak in October (Q4 budget)
         )
 
@@ -182,7 +241,7 @@ def _generate_class_series(
         # 5. COVID shock
         covid_factor = 1.0
         if cfg.inject_covid_shock:
-            covid_factor = _covid_shock(month, cfg.covid_impact)
+            covid_factor = _covid_shock(month, cfg.covid_impact * covid_multiplier)
 
         # 6. Patent cliff effect
         patent_cliff_flag = False
@@ -192,8 +251,9 @@ def _generate_class_series(
             if abs(months_to_expiry) <= cfg.patent_cliff_window_months:
                 patent_cliff_flag = True
                 # Ramp up demand as patent approaches and after expiry
-                cliff_factor *= 1 + cfg.patent_cliff_boost * _cliff_curve(
-                    months_to_expiry, cfg.patent_cliff_window_months
+                cliff_factor *= 1 + (cfg.patent_cliff_boost * patent_multiplier) * _cliff_curve(
+                    months_to_expiry,
+                    cfg.patent_cliff_window_months,
                 )
 
         # 7. Random events
@@ -218,6 +278,8 @@ def _generate_class_series(
             * covid_factor
             * cliff_factor
             * stockout_factor
+            * regime_levels[idx]
+            * _substitution_factor(cls, year)
         )
 
         # 9. Noise (class-correlated + channel-specific)
@@ -225,7 +287,7 @@ def _generate_class_series(
 
         # Per-channel split
         for channel, channel_share in CHANNEL_MIX.items():
-            channel_noise = rng.normal(0, cfg.monthly_noise_sigma * 0.5)
+            channel_noise = rng.normal(0, class_sigma * 0.5)
             # Weighted combination of class + channel noise
             combined_noise = (
                 cfg.class_correlation * class_noise

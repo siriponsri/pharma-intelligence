@@ -83,6 +83,12 @@ class TestMockDataGeneration:
         assert isinstance(df, pl.DataFrame)
         assert len(df) > 0
 
+        cvs = []
+        for class_id in df["class_id"].unique().to_list():
+            class_data = df.filter(pl.col("class_id") == class_id)["units_kddd"]
+            cvs.append(class_data.std() / class_data.mean())
+        assert min(cvs) > 0
+
     def test_required_columns(self, df):
         required = {
             "month",
@@ -118,6 +124,13 @@ class TestMockDataGeneration:
         df1 = generate_demand_panel(config=cfg)
         df2 = generate_demand_panel(config=cfg)
         assert df1.equals(df2)
+
+    def test_realistic_noise_level(self, df):
+        """Generated data should show class-level variation within the tuned realism band."""
+        for class_id in df["class_id"].unique().to_list():
+            class_data = df.filter(pl.col("class_id") == class_id)["units_kddd"]
+            cv = class_data.std() / class_data.mean()
+            assert 0.45 <= cv <= 0.60, f"{class_id}: CV={cv:.3f} out of realistic range"
 
 
 class TestMetrics:
