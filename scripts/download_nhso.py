@@ -15,10 +15,14 @@ console = Console()
 
 @app.command()
 def main(
-    input_path: Path | None = typer.Option(None, "--input", help="Optional CSV export to normalize"),
+    input_path: Path | None = typer.Option(
+        None,
+        "--input",
+        help="Optional raw export to normalize; when omitted the newest file under data/raw/nhso is used",
+    ),
     output: Path | None = typer.Option(None, "--output", help="Output parquet path"),
 ):
-    """Write the NHSO utilization parquet artifact."""
+    """Write the NHSO utilization parquet artifact from a real raw export."""
     written_path = run(output_path=output, input_path=input_path)
     console.print(f"[green]Saved NHSO dataset to {written_path}[/green]")
 

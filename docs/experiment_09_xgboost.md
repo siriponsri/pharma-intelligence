@@ -1,15 +1,32 @@
 # Experiment 09: XGBoost Baseline
 
-**Status:** Planned  
+**Status:** Notebook-ready  
 **Phase:** 4  
 **Engine:** Forecasting
 
 ## Objective
 
-Evaluate whether feature-engineered gradient boosting handles the revised volatility and exogenous signals better than SARIMAX.
+Evaluate whether the feature-engineered XGBoost global model handles the current volatility and exogenous structure better than the classical baselines.
 
-## Planned Evaluation
+## Execution Path
 
-- Rolling or fixed backtest metrics
-- Feature importance and ablation clues
-- Comparison against SARIMAX and Prophet
+- Colab notebook: `notebooks/02_forecasting_baselines_colab.ipynb`
+- Script entry point: `scripts/run_xgboost_baseline.py`
+- Main artifacts:
+	- `data/processed/xgboost_baseline_results_colab.json`
+	- `data/processed/xgboost_predictions_colab.csv`
+	- `data/processed/xgboost_feature_importance_colab.csv`
+
+## Notebook Contract
+
+The Colab workflow:
+
+- prepares the engineered feature frame
+- uses the last 12 months as holdout
+- trains the global XGBoost regressor
+- saves overall MAE, RMSE, and MAPE
+- saves per-class metrics and feature importance
+
+## Next Update
+
+Replace this placeholder with the measured results after executing the Colab notebook and preserve the reported numbers exactly as produced.

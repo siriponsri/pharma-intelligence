@@ -7,8 +7,8 @@ This document tracks the real and synthetic data sources referenced in the maste
 | Source | Type | Phase | Current Status | Intended Use | Key Fields / Signals | Update Frequency | Licensing / Access |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | FDA Orange Book | Public regulatory | 1-3 | Implemented | RAG grounding, patent / exclusivity evidence | ingredient, applicant, approval date, exclusivities, patents | Periodic download | Public |
-| Thailand HDC | Public epidemiology | 2 | Planned | Forecasting anchors and validation | prevalence, incidence, diagnosis counts | Annual / periodic | Public |
-| NHSO open data | Public claims / utilization | 2 | Planned | Demand anchor and service utilization signals | utilization, reimbursement, case volume | Periodic | Public |
+| Thailand HDC | Public epidemiology | 2 | Implemented (manual export normalization) | Forecasting anchors and validation | prevalence, incidence, diagnosis counts | Annual / periodic | Public portal; direct scripted fetch not verified from this environment |
+| NHSO open data | Public claims / utilization | 2 | Implemented (manual export normalization) | Demand anchor and service utilization signals | utilization, reimbursement, case volume | Periodic | Public portal; direct scripted fetch not verified from this environment |
 | Thai e-GP procurement | Public procurement | 2 | Planned | Demand validation and government purchasing signals | tender, price, quantity, hospital buyer | Periodic | Public |
 | TFDA registrations | Public regulatory | 2-3 | Planned | Thai regulatory RAG and launch monitoring | registration, holder, dosage form, approval date | Periodic | Public |
 | Royal Gazette | Public legal / regulatory | 2-3 | Planned | Regulatory event extraction | announcement, publication date, policy type | Periodic | Public |
@@ -25,3 +25,4 @@ This document tracks the real and synthetic data sources referenced in the maste
 - Do not mix internal GPO data into public artifacts without approval.
 - When a source is first integrated, create or update the matching experiment report in `docs/`.
 - Record sanity checks and known limitations before using any source in a benchmark.
+- For HDC and NHSO, place downloaded raw exports under `data/raw/hdc/` and `data/raw/nhso/`, or pass `--input` to the source script explicitly.
