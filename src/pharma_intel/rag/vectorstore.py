@@ -53,18 +53,22 @@ class VectorStore:
 
         # Chroma doesn't support list/None in metadata — coerce
         clean_meta = [_clean_metadata(m) for m in metadatas]
+        max_batch_size = self.client.get_max_batch_size()
 
         # Upsert pattern — delete existing then add
         existing = self.collection.get(ids=ids)
         if existing["ids"]:
             self.collection.delete(ids=existing["ids"])
 
-        self.collection.add(
-            ids=ids,
-            embeddings=embeddings,
-            documents=documents,
-            metadatas=clean_meta,
-        )
+        for start in range(0, len(ids), max_batch_size):
+            end = start + max_batch_size
+            self.collection.add(
+                ids=ids[start:end],
+                embeddings=embeddings[start:end],
+                documents=documents[start:end],
+                metadatas=clean_meta[start:end],
+            )
+
         logger.info(f"Indexed {len(ids)} documents (total in collection: {self.collection.count()})")
 
     def query(
